@@ -1,0 +1,4 @@
+black==23.3.0
+openai==0.27.6
+tiktoken==0.4.0
+flake8==6.0.0
