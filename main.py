@@ -35,7 +35,8 @@ def generate_response(system_prompt, user_prompt, *args):
     reportTokens(system_prompt)
     messages.append({"role": "user", "content": user_prompt})
     reportTokens(user_prompt)
-    # loop thru each arg and add it to messages alternating role between "assistant" and "user"
+    # loop thru each arg and add it to messages alternating roles between
+    # "assistant" and "user"
     role = "assistant"
     for value in args:
         messages.append({"role": role, "content": value})
@@ -60,28 +61,31 @@ def generate_response(system_prompt, user_prompt, *args):
 def generate_file(
     filename, filepaths_string=None, shared_dependencies=None, prompt=None
 ):
-    # call openai api with this prompt
-    filecode = generate_response(
-        f"""You are an AI developer who is trying to write a program that will generate code for the user based on their intent.
+    system_prompt = f"""You are an AI developer who is trying to write a program that
+    will generate code for the user based on their intent.
 
-    the app is: {prompt}
+    The app is: {prompt}
 
-    the files we have decided to generate are: {filepaths_string}
+    The files we have decided to generate are: {filepaths_string}
 
-    the shared dependencies (like filenames and variable names) we have decided on are: {shared_dependencies}
+    The shared dependencies (like filenames and variable names) we have decided on are:
+    {shared_dependencies}
 
-    only write valid code for the given filepath and file type, and return only the code.
-    do not add any other explanation, only return valid code for that file type.
-    """,
-        f"""
-    We have broken up the program into per-file generation.
+    Only write valid code for the given filepath and file type, and return only the
+    code. Do not add any other explanation, only return valid code for that file type.
+    """
+    user_prompt = f"""We have broken up the program into per-file generation.
     Now your job is to generate only the code for the file {filename}.
-    Make sure to have consistent filenames if you reference other files we are also generating.
+    Make sure to have consistent filenames if you reference other files we are also
+    generating.
 
     Remember that you must obey 3 things:
        - you are generating code for the file {filename}
-       - do not stray from the names of the files and the shared dependencies we have decided on
-       - MOST IMPORTANT OF ALL - the purpose of our app is {prompt} - every line of code you generate must be valid code. Do not include code fences in your response, for example
+       - do not stray from the names of the files and the shared dependencies we have
+         decided on
+       - MOST IMPORTANT OF ALL - the purpose of our app is {prompt} - every line of
+         code you generate must be valid code. Do not include code fences in your
+         response, for example
 
     Bad response:
     ```javascript
@@ -92,16 +96,44 @@ def generate_file(
     console.log("hello world")
 
     Begin generating the code now.
+    """
 
-    """,
-    )
-
+    # call openai api with this prompt
+    filecode = generate_response(system_prompt, user_prompt)
     return filename, filecode
+
+
+def generate_shared_dependencies(prompt, filepaths_string, directory):
+    system_prompt = f"""You are an AI developer who is trying to write a program that
+    will generate code for the user based on their intent.
+
+    In response to the user's prompt:
+
+    ---
+    the app is: {prompt}
+    ---
+
+    the files we have decided to generate are: {filepaths_string}
+
+    Now that we have a list of files, we need to understand what dependencies they
+    share. Please list what is shared between the files we are generating, including
+    exported variables, data schemas, id names of every DOM elements that javascript
+    functions will use, message names, and function names. Exclusively focus on the
+    names of the shared dependencies, and do not add any other explanation.
+    """
+    # understand shared dependencies
+    shared_dependencies = generate_response(system_prompt, prompt)
+    print(shared_dependencies)
+    # write shared dependencies as a md file inside the generated directory
+    write_file("shared_dependencies.md", shared_dependencies, directory)
+    return shared_dependencies
 
 
 # def main(prompt, directory=generated_dir, file=None):
 def main(directory=generated_dir, file=None):
-    prompt = "a Chrome extension that, when clicked, opens a small window with a page where you can enter a prompt for reading the currently open page and generating some response from openai"
+    prompt = """a Chrome extension that, when clicked, opens a small window with a page
+    where you can enter a prompt for reading the currently open page and generating some
+    response from openai"""
 
     # read file from prompt if it ends in a .md filetype
     if prompt.endswith(".md"):
@@ -113,20 +145,21 @@ def main(directory=generated_dir, file=None):
     print("\033[92m" + prompt + "\033[0m")
 
     # example prompt:
-    # a Chrome extension that, when clicked, opens a small window with a page where you can enter
-    # a prompt for reading the currently open page and generating some response from openai
+    # a Chrome extension that, when clicked, opens a small window with a page where you
+    # can enter a prompt for reading the currently open page and generating some
+    # response from openai
 
     # call openai api with this prompt
-    filepaths_string = generate_response(
-        """You are an AI developer who is trying to write a program that will generate code for the user based on their intent.
+    system_prompt = """You are an AI developer who is trying to write a program that
+    will generate code for the user based on their intent.
 
-    When given their intent, create a complete, exhaustive list of filepaths that the user would write to make the program.
+    When given their intent, create a complete, exhaustive list of filepaths that the
+    user would write to make the program.
 
-    only list the filepaths you would write, and return them as a python list of strings.
-    do not add any other explanation, only return a python list of strings.
-    """,
-        prompt,
-    )
+    only list the filepaths you would write, and return them as a python list of
+    strings. Do not add any other explanation, only return a python list of strings.
+    """
+    filepaths_string = generate_response(system_prompt, prompt)
     print(filepaths_string)
     # parse the result into a python list
     list_actual = []
@@ -151,30 +184,9 @@ def main(directory=generated_dir, file=None):
             write_file(filename, filecode, directory)
         else:
             clean_dir(directory)
-
-            # understand shared dependencies
-            shared_dependencies = generate_response(
-                """You are an AI developer who is trying to write a program that will generate code for the user based on their intent.
-
-            In response to the user's prompt:
-
-            ---
-            the app is: {prompt}
-            ---
-
-            the files we have decided to generate are: {filepaths_string}
-
-            Now that we have a list of files, we need to understand what dependencies they share.
-            Please name and briefly describe what is shared between the files we are generating, including exported variables, data schemas, id names of every DOM elements that javascript functions will use, message names, and function names.
-            Exclusively focus on the names of the shared dependencies, and do not add any other explanation.
-            """,
-                prompt,
+            shared_dependencies = generate_shared_dependencies(
+                prompt, filepaths_string, directory
             )
-            print(shared_dependencies)
-            # write shared dependencies as a md file inside the generated directory
-            write_file("shared_dependencies.md", shared_dependencies, directory)
-
-            # Existing for loop
 
             for filename in list_actual:
                 filename, filecode = generate_file(
