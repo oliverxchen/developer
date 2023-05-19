@@ -1,6 +1,7 @@
 import ast
 import os
 from pathlib import Path
+import sys
 
 import openai
 import tiktoken
@@ -129,16 +130,9 @@ def generate_shared_dependencies(prompt, filepaths_string, directory):
     return shared_dependencies
 
 
-# def main(prompt, directory=generated_dir, file=None):
-def main(directory=generated_dir, file=None):
-    prompt = """a Chrome extension that, when clicked, opens a small window with a page
-    where you can enter a prompt for reading the currently open page and generating some
-    response from openai"""
-
-    # read file from prompt if it ends in a .md filetype
-    if prompt.endswith(".md"):
-        with open(prompt, "r") as promptfile:
-            prompt = promptfile.read()
+def main(filename, file=None):
+    with open(filename, "r") as prompt_file:
+        prompt = prompt_file.read()
 
     print("hi its me, 🐣the smol developer🐣! you said you wanted:")
     # print the prompt in green color
@@ -181,11 +175,11 @@ def main(directory=generated_dir, file=None):
                 shared_dependencies=shared_dependencies,
                 prompt=prompt,
             )
-            write_file(filename, filecode, directory)
+            write_file(filename, filecode, generated_dir)
         else:
-            clean_dir(directory)
+            clean_dir(generated_dir)
             shared_dependencies = generate_shared_dependencies(
-                prompt, filepaths_string, directory
+                prompt, filepaths_string, generated_dir
             )
 
             for filename in list_actual:
@@ -195,7 +189,7 @@ def main(directory=generated_dir, file=None):
                     shared_dependencies=shared_dependencies,
                     prompt=prompt,
                 )
-                write_file(filename, filecode, directory)
+                write_file(filename, filecode, generated_dir)
 
     except ValueError:
         print("Failed to parse!" + str(ValueError))
@@ -207,8 +201,7 @@ def write_file(filename, filecode, directory):
     print(filecode)
 
     new_directory = (directory / filename).parent
-    if not os.path.exists(new_directory):
-        os.makedirs(new_directory)
+    os.makedirs(new_directory, exist_ok=True)
 
     # Open the file in write mode
     with open(directory / filename, "w") as file:
@@ -242,4 +235,4 @@ def clean_dir(directory):
 
 
 if __name__ == "__main__":
-    main()
+    main(filename=sys.argv[1])
